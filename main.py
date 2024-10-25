@@ -12,6 +12,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 from pathlib import Path
 import json
+import re
 
 # Constants
 DEFAULT_MODEL = "ollama/qwen2.5-coder:7b-instruct-q5_K_M"
@@ -137,6 +138,38 @@ class CodeReviewer:
                 title=f"[blue]{title}[/]",
                 border_style="blue"
             ))
+    
+    def _format_review_content(self, content: str) -> str:
+        """Format the review content for display"""
+        try:
+            content = content.strip()
+            
+            # Find JSON content within code blocks if it exists
+            json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+            json_match = re.search(json_pattern, content, re.DOTALL)
+            
+            if json_match:
+                try:
+                    # Extract and parse the JSON content
+                    json_content = json_match.group(1)
+                    data = json.loads(json_content)
+                    # Extract the actual review text from the JSON response
+                    content = data.get('response', json_content)
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, use the original content
+                    pass
+            
+            # Remove any remaining code block markers and cleanup
+            content = re.sub(r'```json\s*', '', content)
+            content = re.sub(r'```\s*', '', content)
+            content = content.strip()
+            
+            return content
+        except Exception as e:
+            if self.debug:
+                self.console.print(f"[yellow]Warning: Error formatting content: {str(e)}[/]")
+            # Return original content if anything goes wrong
+            return content
 
     def review_branch(self, branch_name: str, base_branch: Optional[str] = None, system_msg: Optional[str] = None) -> str:
         try:
@@ -178,8 +211,17 @@ class CodeReviewer:
             )
 
             review_content = response.choices[0].message.content
-            self._debug_print("LLM Response", review_content)
-            return review_content
+            
+            if self.debug:
+                self._debug_print("Raw LLM Response", review_content)
+            
+            # Format the content for display
+            formatted_content = self._format_review_content(review_content)
+            
+            # Additional cleanup for display
+            formatted_content = formatted_content.strip()
+            
+            return formatted_content
 
         except click.ClickException as e:
             raise e
