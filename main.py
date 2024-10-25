@@ -145,7 +145,7 @@ class CodeReviewer:
             content = content.strip()
             
             # Find JSON content within code blocks if it exists
-            json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+            json_pattern = r'```(?:json)?\s*(\{.*\})\s*```'
             json_match = re.search(json_pattern, content, re.DOTALL)
             
             if json_match:
@@ -182,21 +182,34 @@ class CodeReviewer:
 
             diff = self.git.get_branch_diff(branch_name, base_branch)
             
-            # Add branch information to the user message
-            branch_info = f"Reviewing changes in branch '{branch_name}' compared to '{base_branch}':\n\n"
+            user_msg = f"""Reviewing changes in branch '{branch_name}' compared to '{base_branch}'.
+
+**Review Guidelines:**
+1. **Focus Areas:**
+   - Identify specific lines or sections that need attention
+   - Evaluate code quality and adherence to best practices
+   - Check for potential bugs and edge cases
+   - Assess performance implications
+   - Review security considerations
+
+2. **Review Approach:**
+   - Prioritize critical issues over minor style concerns
+   - Highlight well-written code and effective solutions
+   - Suggest improvements only when they add significant value
+   - Be specific in your feedback and recommendations
+
+Please review the following changes:
+
+{diff}"""
             
             default_system_msg = (
-                "You are an experienced code reviewer. Review the following code changes "
-                "and provide constructive feedback. Focus on:"
-                "\n- Code quality and best practices"
-                "\n- Potential bugs and edge cases"
-                "\n- Performance implications"
-                "\n- Security concerns"
-                "\nProvide your feedback in markdown format."
+                "You are an experienced code reviewer. Analyze the code changes and provide "
+                "constructive feedback following the given guidelines. Format your response "
+                "in markdown with clear sections for different types of findings. "
+                "Be concise but thorough, focusing on impactful changes and potential issues."
             )
 
             system_msg = system_msg or default_system_msg
-            user_msg = branch_info + diff
 
             self._debug_print("System Message", system_msg)
             self._debug_print("User Message", user_msg)
@@ -217,8 +230,6 @@ class CodeReviewer:
             
             # Format the content for display
             formatted_content = self._format_review_content(review_content)
-            
-            # Additional cleanup for display
             formatted_content = formatted_content.strip()
             
             return formatted_content
