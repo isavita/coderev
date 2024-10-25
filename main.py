@@ -1,10 +1,9 @@
 import os
-import sys
 import click
 import git
 from enum import Enum
-from dataclasses import dataclass, asdict
-from typing import Optional, List, Dict
+from dataclasses import dataclass
+from typing import Optional, List, Dict, Tuple
 from litellm import completion
 from rich.console import Console
 from rich.panel import Panel
@@ -68,8 +67,8 @@ class GitHandler:
             f"No default base branch found. Expected one of: {', '.join(DEFAULT_BASE_BRANCHES)}"
         )
 
-    def get_branch_diff(self, branch_name: str, base_branch: Optional[str] = None) -> str:
-        """Get diff between specified branch and base branch"""
+    def get_branch_diff(self, branch_name: str, base_branch: Optional[str] = None, files: Optional[List[str]] = None) -> str:
+        """Get diff between specified branch and base branch, optionally filtered by files"""
         try:
             if base_branch is None:
                 base_branch = self.get_default_base_branch()
@@ -86,20 +85,54 @@ class GitHandler:
             if base_branch not in self.repo.heads:
                 raise click.ClickException(f"Base branch '{base_branch}' not found")
 
+            # Validate files exist in the repository
+            if files:
+                repo_files = set(item.path for item in self.repo.tree().traverse())
+                for file in files:
+                    if file not in repo_files:
+                        raise click.ClickException(f"File not found in repository: {file}")
+
             # Get the diff between the branches
-            diff = self.repo.git.diff(f"{base_branch}...{branch_name}")
+            if files:
+                # Get diff for specific files
+                diff = self.repo.git.diff(f"{base_branch}...{branch_name}", "--", *files)
+            else:
+                # Get diff for all files
+                diff = self.repo.git.diff(f"{base_branch}...{branch_name}")
             
             if not diff:
-                raise click.ClickException(
-                    f"No changes found between {branch_name} and {base_branch}"
-                )
+                if files:
+                    raise click.ClickException(
+                        f"No changes found between {branch_name} and {base_branch} "
+                        f"for the specified files: {', '.join(files)}"
+                    )
+                else:
+                    raise click.ClickException(
+                        f"No changes found between {branch_name} and {base_branch}"
+                    )
             
             return diff
         except git.GitCommandError as e:
             raise click.ClickException(f"Git error: {str(e)}")
         except Exception as e:
             raise click.ClickException(f"Error getting diff: {str(e)}")
+        
+    def get_changed_files(self, branch_name: str, base_branch: Optional[str] = None) -> List[str]:
+        """Get list of files changed between branches"""
+        try:
+            if base_branch is None:
+                base_branch = self.get_default_base_branch()
 
+            diff_files = self.repo.git.diff(
+                f"{base_branch}...{branch_name}",
+                "--name-only"
+            ).split('\n')
+            
+            # Filter out empty strings
+            return [f for f in diff_files if f]
+        except git.GitCommandError as e:
+            raise click.ClickException(f"Git error: {str(e)}")
+        
     def list_branches(self) -> List[str]:
         """List all branches in the repository"""
         return [branch.name for branch in self.repo.heads]
@@ -144,45 +177,59 @@ class CodeReviewer:
         try:
             content = content.strip()
             
-            # Find JSON content within code blocks if it exists
-            json_pattern = r'```(?:json)?\s*(\{.*\})\s*```'
-            json_match = re.search(json_pattern, content, re.DOTALL)
+            # Find the outermost JSON code block
+            start_pattern = r'^\s*```(?:json)?\s*\{'
+            end_pattern = r'\}\s*```\s*$'
             
-            if json_match:
+            start_match = re.search(start_pattern, content, re.MULTILINE)
+            end_match = re.search(end_pattern, content, re.MULTILINE)
+            
+            if start_match and end_match:
+                # Extract everything between the outermost code block markers
+                json_content = content[start_match.start():end_match.end()]
+                # Remove the ```json prefix and ``` suffix
+                json_content = re.sub(r'^\s*```(?:json)?\s*', '', json_content)
+                json_content = re.sub(r'\s*```\s*$', '', json_content)
+                
                 try:
-                    # Extract and parse the JSON content
-                    json_content = json_match.group(1)
+                    # Parse the JSON and extract the response
                     data = json.loads(json_content)
-                    # Extract the actual review text from the JSON response
-                    content = data.get('response', json_content)
+                    return data.get('response', json_content)
                 except json.JSONDecodeError:
-                    # If JSON parsing fails, use the original content
-                    pass
-            
-            # Remove any remaining code block markers and cleanup
-            content = re.sub(r'```json\s*', '', content)
-            content = re.sub(r'```\s*', '', content)
-            content = content.strip()
+                    if self.debug:
+                        self.console.print("[yellow]Warning: Failed to parse JSON content[/]")
+                    return content
             
             return content
+            
         except Exception as e:
             if self.debug:
                 self.console.print(f"[yellow]Warning: Error formatting content: {str(e)}[/]")
-            # Return original content if anything goes wrong
             return content
-
-    def review_branch(self, branch_name: str, base_branch: Optional[str] = None, system_msg: Optional[str] = None) -> str:
+        
+    def review_branch(self, branch_name: str, base_branch: Optional[str] = None, 
+                     files: Optional[List[str]] = None, system_msg: Optional[str] = None) -> str:
         try:
-            # If no base_branch specified, use the one from config or detect it
             if not base_branch:
                 try:
                     base_branch = self.config.base_branch
                 except AttributeError:
                     base_branch = self.git.get_default_base_branch()
 
-            diff = self.git.get_branch_diff(branch_name, base_branch)
+            # Get changed files if files parameter is not provided
+            changed_files = self.git.get_changed_files(branch_name, base_branch)
+            
+            # Add files information to the message
+            files_info = ""
+            if files:
+                files_info = f"\nReviewing specific files:\n" + "\n".join(f"- {f}" for f in files)
+            else:
+                files_info = f"\nChanged files:\n" + "\n".join(f"- {f}" for f in changed_files)
+
+            diff = self.git.get_branch_diff(branch_name, base_branch, files)
             
             user_msg = f"""Reviewing changes in branch '{branch_name}' compared to '{base_branch}'.
+{files_info}
 
 **Review Guidelines:**
 1. **Focus Areas:**
@@ -270,12 +317,14 @@ def init():
 @cli.command()
 @click.argument('branch_name', required=False)
 @click.option('--base', help='Base branch to compare against (defaults to main/master)')
+@click.option('--files', '-f', multiple=True, help='Specific files to review')
 @click.option('--debug', is_flag=True, help='Enable debug mode')
 @click.option('--model', help='Specify LLM model')
 @click.option('--temperature', type=float, help='Set temperature for LLM')
 @click.option('--system-msg', help='Custom system message for the LLM')
-def review(branch_name: Optional[str], base: Optional[str], debug: bool, 
-          model: Optional[str], temperature: Optional[float], system_msg: Optional[str]):
+def review(branch_name: Optional[str], base: Optional[str], files: Tuple[str, ...],
+          debug: bool, model: Optional[str], temperature: Optional[float], 
+          system_msg: Optional[str]):
     """Review changes in a branch compared to base branch (default: main/master)"""
     try:
         reviewer = CodeReviewer(debug=debug)
@@ -289,7 +338,15 @@ def review(branch_name: Optional[str], base: Optional[str], debug: bool,
             branch_name = reviewer.git.get_current_branch()
             click.echo(f"No branch specified, reviewing current branch: {branch_name}")
 
-        review_content = reviewer.review_branch(branch_name, base, system_msg)
+        # Convert files tuple to list if provided
+        files_list = list(files) if files else None
+        
+        review_content = reviewer.review_branch(
+            branch_name, 
+            base, 
+            files=files_list,
+            system_msg=system_msg
+        )
         click.echo("\n" + review_content)
     except click.ClickException as e:
         click.echo(f"Error: {str(e)}", err=True)
