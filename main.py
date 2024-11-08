@@ -74,9 +74,18 @@ class GitHandler:
                 base_branch = self.get_default_base_branch()
 
             if branch_name == base_branch:
+                existing_branches = [b.name for b in self.repo.heads if b.name != base_branch]
+                example_branch = existing_branches[0] if existing_branches else "feature-branch"
+
+                hint = f"\nTo review changes:\n" \
+                    f"• From main branch:\n" \
+                    f"  codify review {example_branch}\n" \
+                    f"• After switching branch:\n" \
+                    f"  git checkout {example_branch}\n" \
+                    f"  codify review"
+
                 raise click.ClickException(
-                    f"Cannot compare {branch_name} with itself. "
-                    "Please specify a different branch to review."
+                    f"Cannot review the main branch against itself.\n{hint}"
                 )
 
             # Ensure both branches exist
@@ -99,7 +108,7 @@ class GitHandler:
             else:
                 # Get diff for all files
                 diff = self.repo.git.diff(f"{base_branch}...{branch_name}")
-            
+
             if not diff:
                 if files:
                     raise click.ClickException(
@@ -115,8 +124,10 @@ class GitHandler:
         except git.GitCommandError as e:
             raise click.ClickException(f"Git error: {str(e)}")
         except Exception as e:
+            if isinstance(e, click.ClickException):
+                raise e
             raise click.ClickException(f"Error getting diff: {str(e)}")
-        
+
     def get_changed_files(self, branch_name: str, base_branch: Optional[str] = None) -> List[str]:
         """Get list of files changed between branches"""
         try:

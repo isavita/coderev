@@ -304,5 +304,34 @@ def test_model_validation(reviewer):
             elif key in os.environ:
                 del os.environ[key]
 
+def test_git_handler_same_branch_error(git_handler):
+    """Test error message when trying to compare a branch with itself"""
+    with pytest.raises(click.ClickException) as exc_info:
+        git_handler.get_branch_diff("main", "main")
+    
+    error_message = str(exc_info.value)
+    # Check main error message
+    assert "Cannot review the main branch against itself" in error_message
+    
+    # Check help sections
+    assert "To review changes:" in error_message
+    assert "• From main branch:" in error_message
+    assert "• After switching branch:" in error_message
+    
+    # Check commands format
+    assert "codify review" in error_message
+    assert "git checkout" in error_message
+    
+    # Test with existing branches
+    mock_branch = Mock()
+    mock_branch.name = "feature-123"
+    git_handler.repo.heads = [mock_branch]
+    
+    with pytest.raises(click.ClickException) as exc_info:
+        git_handler.get_branch_diff("main", "main")
+    
+    error_message = str(exc_info.value)
+    assert "feature-123" in error_message  # Should show real branch name in example
+
 if __name__ == '__main__':
     pytest.main(['-v'])
