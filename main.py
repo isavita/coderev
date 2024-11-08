@@ -15,6 +15,7 @@ import re
 
 # Constants
 DEFAULT_MODEL = "gpt-4o"
+DEFAULT_BASE_BRANCH = "main"
 DEFAULT_TEMPERATURE = 0.0
 CONFIG_FILENAME = ".codify.config"
 DEFAULT_BASE_BRANCHES = ["main", "master"]
@@ -25,24 +26,19 @@ DEFAULT_SYSTEM_MESSAGE = (
     "Be concise but thorough, focusing on impactful changes and potential issues."
 )
 
-class ReviewMode(Enum):
-    NORMAL = "normal"
-    SECURITY = "security"
-    PERFORMANCE = "performance"
+
 
 @dataclass
 class Config:
     model: str = DEFAULT_MODEL
     temperature: float = DEFAULT_TEMPERATURE
-    review_mode: ReviewMode = ReviewMode.NORMAL
-    base_branch: str = "main"
+    base_branch: str = DEFAULT_BASE_BRANCH
     system_message: str = DEFAULT_SYSTEM_MESSAGE
 
     def to_dict(self):
         return {
             "model": self.model,
             "temperature": self.temperature,
-            "review_mode": self.review_mode.value,
             "base_branch": self.base_branch,
             "system_message": self.system_message
         }
@@ -52,8 +48,7 @@ class Config:
         return cls(
             model=data.get("model", DEFAULT_MODEL),
             temperature=data.get("temperature", DEFAULT_TEMPERATURE),
-            review_mode=ReviewMode(data.get("review_mode", "normal")),
-            base_branch=data.get("base_branch", "main"),
+            base_branch=data.get("base_branch", DEFAULT_BASE_BRANCH),
             system_message=data.get("system_message", DEFAULT_SYSTEM_MESSAGE)
         )
 
@@ -119,7 +114,7 @@ class GitHandler:
                     diff = self.repo.git.diff(f"{base_branch}...{branch_name}")
             except git.GitCommandError as e:
                 # If the first attempt fails with main, try master
-                if base_branch == "main" and "unknown revision" in str(e):
+                if base_branch == DEFAULT_BASE_BRANCH and "unknown revision" in str(e):
                     base_branch = "master"
                     if files:
                         diff = self.repo.git.diff(f"{base_branch}...{branch_name}", "--", *files)
@@ -163,7 +158,7 @@ class GitHandler:
                 ).split('\n')
             except git.GitCommandError as e:
                 # If the first attempt fails with main, try master
-                if base_branch == "main" and "unknown revision" in str(e):
+                if base_branch == DEFAULT_BASE_BRANCH and "unknown revision" in str(e):
                     base_branch = "master"
                     diff_files = self.repo.git.diff(
                         f"{base_branch}...{branch_name}",

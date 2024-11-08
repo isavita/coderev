@@ -69,7 +69,6 @@ codify config set system_message "Your custom review instructions"
 Default configuration:
 - Model: `gpt-4o`
 - Temperature: 0.0
-- Review Mode: normal
 - System Message: General code review instructions focusing on quality and best practices
 
 ### Review Instructions

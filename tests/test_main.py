@@ -9,9 +9,9 @@ from main import (
     GitHandler,
     CodeReviewer,
     Config,
-    ReviewMode,
     cli,
     DEFAULT_MODEL,
+    DEFAULT_BASE_BRANCH,
     DEFAULT_TEMPERATURE,
     DEFAULT_SYSTEM_MESSAGE
 )
@@ -67,8 +67,7 @@ def mock_config():
     return {
         "model": DEFAULT_MODEL,
         "temperature": DEFAULT_TEMPERATURE,
-        "review_mode": "normal",
-        "base_branch": "main"
+        "base_branch": DEFAULT_BASE_BRANCH
     }
 
 @pytest.fixture
@@ -108,28 +107,24 @@ def test_config_default_values():
     config = Config()
     assert config.model == DEFAULT_MODEL
     assert config.temperature == DEFAULT_TEMPERATURE
-    assert config.review_mode == ReviewMode.NORMAL
-    assert config.base_branch == "main"
+    assert config.base_branch == DEFAULT_BASE_BRANCH
 
 def test_config_serialization():
     """Test Config serialization and deserialization"""
     config = Config(
         model="custom-model",
         temperature=0.5,
-        review_mode=ReviewMode.SECURITY,
         base_branch="develop"
     )
     
     config_dict = config.to_dict()
     assert config_dict["model"] == "custom-model"
     assert config_dict["temperature"] == 0.5
-    assert config_dict["review_mode"] == "security"
     assert config_dict["base_branch"] == "develop"
     
     new_config = Config.from_dict(config_dict)
     assert new_config.model == config.model
     assert new_config.temperature == config.temperature
-    assert new_config.review_mode == config.review_mode
     assert new_config.base_branch == config.base_branch
 
 def test_cli_init_command(tmp_path):
@@ -406,7 +401,6 @@ def test_system_message_configuration(tmp_path, git_handler):
     custom_config = {
         "model": "gpt-4o",
         "temperature": 0.0,
-        "review_mode": "normal",
         "base_branch": "main",
         "system_message": "Custom system message from config"
     }
