@@ -333,5 +333,70 @@ def test_git_handler_same_branch_error(git_handler):
     error_message = str(exc_info.value)
     assert "feature-123" in error_message  # Should show real branch name in example
 
+def test_git_handler_base_branch_fallback(git_handler):
+    """Test fallback from main to master when main doesn't exist"""
+    # Mock git command to fail for main but succeed for master
+    def mock_diff(*args, **kwargs):
+        if "main..." in args[0]:
+            raise git.GitCommandError(
+                'git',
+                128,
+                stderr="fatal: ambiguous argument 'main...feature-branch': unknown revision or path not in the working tree."
+            )
+        elif "master..." in args[0]:
+            return "file1.py\nfile2.py"
+        return ""
+
+    git_handler.repo.git.diff = Mock(side_effect=mock_diff)
+
+    # Mock branch existence check
+    class MockHead:
+        def __init__(self, name):
+            self.name = name
+
+        def __eq__(self, other):
+            return self.name == other
+
+        def __str__(self):
+            return self.name
+
+    git_handler.repo.heads = [
+        MockHead("master"),
+        MockHead("feature-branch")
+    ]
+
+    # Mock rev-parse to simulate main branch not existing but master existing
+    def mock_rev_parse(ref):
+        if ref == "main":
+            raise git.GitCommandError('git', 128, stderr="fatal: ambiguous argument 'main'")
+        return ""
+
+    git_handler.repo.git.rev_parse = Mock(side_effect=mock_rev_parse)
+
+    # Test get_changed_files
+    files = git_handler.get_changed_files("feature-branch")
+    assert files == ["file1.py", "file2.py"]
+
+    # Test get_branch_diff
+    diff = git_handler.get_branch_diff("feature-branch")
+    assert diff == "file1.py\nfile2.py"
+
+def test_git_handler_both_base_branches_missing(git_handler):
+    """Test error when both main and master are missing"""
+    def mock_diff(*args, **kwargs):
+        raise git.GitCommandError(
+            'git',
+            128,
+            stderr="fatal: ambiguous argument: unknown revision or path not in the working tree."
+        )
+
+    git_handler.repo.git.diff = Mock(side_effect=mock_diff)
+    git_handler.repo.heads = [Mock(name="feature-branch")]  # Only feature branch exists
+
+    with pytest.raises(click.ClickException) as exc_info:
+        git_handler.get_changed_files("feature-branch")
+
+    assert "No default base branch found" in str(exc_info.value)
+
 if __name__ == '__main__':
     pytest.main(['-v'])

@@ -60,9 +60,17 @@ class GitHandler:
 
     def get_default_base_branch(self) -> str:
         """Detect the default base branch (main or master)"""
+        # First try to get the base branch from the existing branches
         for base in DEFAULT_BASE_BRANCHES:
             if base in self.repo.heads:
-                return base
+                try:
+                    # Verify the branch exists and is valid
+                    self.repo.git.rev_parse(f"{base}")
+                    return base
+                except git.GitCommandError:
+                    continue
+
+        # If no valid base branch is found
         raise click.ClickException(
             f"No default base branch found. Expected one of: {', '.join(DEFAULT_BASE_BRANCHES)}"
         )
@@ -91,23 +99,25 @@ class GitHandler:
             # Ensure both branches exist
             if branch_name not in self.repo.heads:
                 raise click.ClickException(f"Branch '{branch_name}' not found")
-            if base_branch not in self.repo.heads:
-                raise click.ClickException(f"Base branch '{base_branch}' not found")
 
-            # Validate files exist in the repository
-            if files:
-                repo_files = set(item.path for item in self.repo.tree().traverse())
-                for file in files:
-                    if file not in repo_files:
-                        raise click.ClickException(f"File not found in repository: {file}")
-
-            # Get the diff between the branches
-            if files:
-                # Get diff for specific files
-                diff = self.repo.git.diff(f"{base_branch}...{branch_name}", "--", *files)
-            else:
-                # Get diff for all files
-                diff = self.repo.git.diff(f"{base_branch}...{branch_name}")
+            try:
+                # Try to get the diff
+                if files:
+                    # Get diff for specific files
+                    diff = self.repo.git.diff(f"{base_branch}...{branch_name}", "--", *files)
+                else:
+                    # Get diff for all files
+                    diff = self.repo.git.diff(f"{base_branch}...{branch_name}")
+            except git.GitCommandError as e:
+                # If the first attempt fails with main, try master
+                if base_branch == "main" and "unknown revision" in str(e):
+                    base_branch = "master"
+                    if files:
+                        diff = self.repo.git.diff(f"{base_branch}...{branch_name}", "--", *files)
+                    else:
+                        diff = self.repo.git.diff(f"{base_branch}...{branch_name}")
+                else:
+                    raise
 
             if not diff:
                 if files:
@@ -122,7 +132,10 @@ class GitHandler:
             
             return diff
         except git.GitCommandError as e:
-            raise click.ClickException(f"Git error: {str(e)}")
+            raise click.ClickException(
+                f"Git error: Could not get diff between '{branch_name}' and '{base_branch}'. "
+                f"Make sure both branches exist and have common history."
+            )
         except Exception as e:
             if isinstance(e, click.ClickException):
                 raise e
@@ -134,16 +147,26 @@ class GitHandler:
             if base_branch is None:
                 base_branch = self.get_default_base_branch()
 
-            diff_files = self.repo.git.diff(
-                f"{base_branch}...{branch_name}",
-                "--name-only"
-            ).split('\n')
-            
+            try:
+                diff_files = self.repo.git.diff(
+                    f"{base_branch}...{branch_name}",
+                    "--name-only"
+                ).split('\n')
+            except git.GitCommandError as e:
+                # If the first attempt fails with main, try master
+                if base_branch == "main" and "unknown revision" in str(e):
+                    base_branch = "master"
+                    diff_files = self.repo.git.diff(
+                        f"{base_branch}...{branch_name}",
+                        "--name-only"
+                    ).split('\n')
+                else:
+                    raise
             # Filter out empty strings
             return [f for f in diff_files if f]
         except git.GitCommandError as e:
-            raise click.ClickException(f"Git error: {str(e)}")
-        
+            raise click.ClickException(f"Git error: Could not get changed files. {str(e)}")
+
     def list_branches(self) -> List[str]:
         """List all branches in the repository"""
         return [branch.name for branch in self.repo.heads]
