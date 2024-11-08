@@ -71,6 +71,8 @@ Default configuration:
 
 - `OPENAI_API_KEY`: For OpenAI models
 - `ANTHROPIC_API_KEY`: For Anthropic models
+- `MISTRAL_API_KEY`: For Mistral models
+- `GEMINI_API_KEY`: For Gemini models
 - `CODIFY_DEBUG_ENABLED`: Enable debug mode (set to "true")
 
 ## Development
