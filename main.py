@@ -14,7 +14,7 @@ import json
 import re
 
 # Constants
-DEFAULT_MODEL = "ollama/qwen2.5-coder:7b-instruct-q5_K_M"
+DEFAULT_MODEL = "gpt-4o"
 DEFAULT_TEMPERATURE = 0.0
 CONFIG_FILENAME = ".codify.config"
 DEFAULT_BASE_BRANCHES = ["main", "master"]

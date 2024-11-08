@@ -1,97 +1,88 @@
 # Codify
 
-Codify is a command-line tool that uses LLMs (Large Language Models) to perform automated code reviews. It works with local git repositories and leverages the `litellm` library to provide intelligent code review feedback.
+An AI-powered code review tool that uses LLMs to provide intelligent feedback on your pull requests.
 
 ## Installation
 
-1. Clone and set up the repository:
 ```bash
-git clone https://github.com/yourusername/codify
-cd codify
-python -m venv venv
-source venv/bin/activate  # On Windows, use: venv\Scripts\activate
+pip install codify
 ```
 
-2. Install dependencies:
+## Quick Start
+
 ```bash
-pip install -r requirements.txt
+# Initialize in your git repository
+codify init
+
+# Review current branch
+codify review
+
+# Review specific branch or files
+codify review feature-branch
+codify review -f file1.py file2.py
 ```
 
-## Usage
+## Supported Models
 
-### Basic Commands
+Codify uses `litellm` for model integration and supports various LLM [providers](https://docs.litellm.ai/docs/providers). The default model is `gpt-4o`.
 
+Examples:
 ```bash
-# Initialize Codify in your repository
-python main.py init
+# OpenAI (requires OPENAI_API_KEY)
+codify review --model gpt-4o
+codify review --model o1-mini
 
-# List all branches
-python main.py list
+# Anthropic (requires ANTHROPIC_API_KEY)
+codify review --model claude-3-sonnet-20240320
 
-# Review current branch changes
-python main.py review
+# Mistral (requires MISTRAL_API_KEY)
+codify review --model mistral/mistral-large-latest
 
-# Review specific branch
-python main.py review feature-branch
+# Gemini (requires GEMINI_API_KEY)
+codify review --model gemini/gemini-1.5-pro-latest
 
-# Review specific files
-python main.py review --files path/to/file1.py path/to/file2.py
+# Local models via Ollama (requires Ollama installation)
+codify review --model ollama/qwen2.5-coder
 ```
 
-### Advanced Options
+For a complete list of supported models and their required environment variables, see [litellm's documentation](https://docs.litellm.ai/docs/).
+
+## Configuration
+
+Manage settings in `.codify.config`:
 
 ```bash
-# Enable debug output
-python main.py review --debug
+# View settings
+codify config list
 
-# Use specific model
-python main.py review --model "ollama/qwen2.5-coder:7b-instruct-q5_K_M"
+# Change model
+codify config set model gpt-4o
 
-# Compare against different base branch
-python main.py review feature-branch --base develop
-```
-
-### Configuration
-
-Codify stores its settings in `.codify.config`. Manage configuration with:
-
-```bash
-# Set configuration
-python main.py config set model "ollama/qwen2.5-coder:7b-instruct-q5_K_M"
-
-# List current configuration
-python main.py config list
+# Change temperature
+codify config set temperature 0.2
 ```
 
 Default configuration:
-- Model: `ollama/qwen2.5-coder:7b-instruct-q5_K_M`
+- Model: `gpt-4o`
 - Temperature: 0.0
 - Review Mode: normal
 
-### Environment Variables
+## Environment Variables
 
-- `CODIFY_DEBUG_ENABLED`: Set to "true" to enable debug mode globally
+- `OPENAI_API_KEY`: For OpenAI models
+- `ANTHROPIC_API_KEY`: For Anthropic models
+- `CODIFY_DEBUG_ENABLED`: Enable debug mode (set to "true")
 
-## Making it Executable (Optional)
-
-Make the tool easier to use by adding it to your PATH:
+## Development
 
 ```bash
-chmod +x main.py
-ln -s /path/to/main.py /usr/local/bin/codify
-```
+# Install dev dependencies
+pip install -e ".[dev]"
 
-Then use it as:
-```bash
-codify review
+# Run tests
+pytest
 ```
 
 ## License
 
-This project is licensed under the MIT License.
-
-## Acknowledgments
-
-- [litellm](https://github.com/BerriAI/litellm) - LLM integration
-- [Click](https://click.palletsprojects.com/) - CLI interface
-- [Rich](https://rich.readthedocs.io/) - Terminal formatting
+MIT License

@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import Mock, patch, PropertyMock, MagicMock
 import git
 import json
+import click
 from pathlib import Path
 from click.testing import CliRunner
 from main import (
@@ -220,6 +221,88 @@ def test_review_branch_with_files(reviewer):
             files=["test.py"]
         )
         assert "Mock review for specific files" in result
+
+def test_model_validation(reviewer):
+    """Test different model configurations and error handling"""
+    import os
+    from litellm import ModelResponse, Choices, Message
+    
+    # Save original env vars
+    original_env = {
+        'OPENAI_API_KEY': os.environ.get('OPENAI_API_KEY'),
+        'ANTHROPIC_API_KEY': os.environ.get('ANTHROPIC_API_KEY'),
+        'GEMINI_API_KEY': os.environ.get('GEMINI_API_KEY'),
+        'MISTRAL_API_KEY': os.environ.get('MISTRAL_API_KEY')
+    }
+    
+    try:
+        # Clear environment variables
+        for key in original_env:
+            if key in os.environ:
+                del os.environ[key]
+        
+        # Mock success response
+        mock_response = ModelResponse(
+            id="mock-id",
+            choices=[
+                Choices(
+                    message=Message(
+                        content="Mock review content",
+                        role="assistant"
+                    ),
+                    index=0
+                )
+            ]
+        )
+        
+        # Test missing API key error
+        with pytest.raises(click.ClickException) as exc_info:
+            reviewer.config.model = "gpt-4o"
+            reviewer.review_branch("feature-branch")
+        assert "The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable" in str(exc_info.value)
+        
+        # Test with valid OpenAI setup
+        with patch('main.completion') as mock_completion:
+            mock_completion.return_value = mock_response
+            os.environ['OPENAI_API_KEY'] = 'mock-key'
+            
+            reviewer.config.model = "gpt-4o"
+            result = reviewer.review_branch("feature-branch")
+            assert "Mock review content" in result
+            
+            reviewer.config.model = "o1-mini"
+            result = reviewer.review_branch("feature-branch")
+            assert "Mock review content" in result
+        
+        # Test with valid Anthropic setup
+        with patch('main.completion') as mock_completion:
+            mock_completion.return_value = mock_response
+            os.environ['ANTHROPIC_API_KEY'] = 'mock-key'
+            
+            reviewer.config.model = "claude-3-sonnet-20240320"
+            result = reviewer.review_branch("feature-branch")
+            assert "Mock review content" in result
+        
+        # Test with Ollama (no API key needed)
+        with patch('main.completion') as mock_completion:
+            mock_completion.return_value = mock_response
+            reviewer.config.model = "ollama/qwen2.5-coder"
+            result = reviewer.review_branch("feature-branch")
+            assert "Mock review content" in result
+        
+        # Test invalid model name
+        with pytest.raises(click.ClickException) as exc_info:
+            reviewer.config.model = "invalid-model"
+            reviewer.review_branch("feature-branch")
+        assert "Error during review" in str(exc_info.value)
+        
+    finally:
+        # Restore original env vars
+        for key, value in original_env.items():
+            if value is not None:
+                os.environ[key] = value
+            elif key in os.environ:
+                del os.environ[key]
 
 if __name__ == '__main__':
     pytest.main(['-v'])
