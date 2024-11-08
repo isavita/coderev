@@ -12,7 +12,8 @@ from main import (
     ReviewMode,
     cli,
     DEFAULT_MODEL,
-    DEFAULT_TEMPERATURE
+    DEFAULT_TEMPERATURE,
+    DEFAULT_SYSTEM_MESSAGE
 )
 
 @pytest.fixture
@@ -397,6 +398,92 @@ def test_git_handler_both_base_branches_missing(git_handler):
         git_handler.get_changed_files("feature-branch")
 
     assert "No default base branch found" in str(exc_info.value)
+
+def test_system_message_configuration(tmp_path, git_handler):
+    """Test system message configuration and priority"""
+    # Setup
+    config_path = tmp_path / ".codify.config"
+    custom_config = {
+        "model": "gpt-4o",
+        "temperature": 0.0,
+        "review_mode": "normal",
+        "base_branch": "main",
+        "system_message": "Custom system message from config"
+    }
+    config_path.write_text(json.dumps(custom_config))
+
+    with patch('pathlib.Path.exists') as mock_exists, \
+         patch('pathlib.Path.__truediv__') as mock_truediv, \
+         patch('main.completion') as mock_completion:
+        
+        mock_exists.return_value = True
+        mock_truediv.return_value = config_path
+        mock_completion.return_value = Mock(
+            choices=[Mock(message=Mock(content="Mock review content"))]
+        )
+    
+        reviewer = CodeReviewer(debug=True)
+        reviewer.git = git_handler
+    
+        # Mock git operations
+        git_handler.get_changed_files = Mock(return_value=["file1.py"])
+        git_handler.get_branch_diff = Mock(return_value="mock diff")
+    
+        # Test 1: Using config file system message
+        result = reviewer.review_branch("feature-branch")
+        args = mock_completion.call_args[1]
+        assert args['messages'][0]['content'] == "Custom system message from config"
+    
+        # Test 2: Override with explicit system message
+        explicit_msg = "Explicit system message"
+        result = reviewer.review_branch("feature-branch", system_msg=explicit_msg)
+        args = mock_completion.call_args[1]
+        assert args['messages'][0]['content'] == explicit_msg
+    
+        # Test 3: Fallback to default when config doesn't have system_message
+        del custom_config['system_message']
+        config_path.write_text(json.dumps(custom_config))
+        reviewer = CodeReviewer(debug=True)
+        reviewer.git = git_handler
+    
+        result = reviewer.review_branch("feature-branch")
+        args = mock_completion.call_args[1]
+        assert args['messages'][0]['content'] == DEFAULT_SYSTEM_MESSAGE
+
+def test_system_message_cli_command(tmp_path, git_handler):
+    """Test system message via CLI command"""
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        # Setup mock repo and config
+        mock_repo = Mock(spec=git.Repo)
+        type(mock_repo).working_dir = PropertyMock(return_value=str(tmp_path))
+
+        with patch('git.Repo') as mock_git_repo, \
+             patch('main.completion') as mock_completion:
+
+            mock_git_repo.return_value = mock_repo
+            mock_completion.return_value = Mock(
+                choices=[Mock(message=Mock(content="Mock review content"))]
+            )
+
+            # Initialize config
+            result = runner.invoke(cli, ['init'])
+            assert result.exit_code == 0
+
+            # Test setting system message via config
+            result = runner.invoke(cli, ['config', 'set', 'system_message', 'Custom message'])
+            assert result.exit_code == 0
+
+            # Verify system message was saved
+            config_path = tmp_path / ".codify.config"
+            config_data = json.loads(config_path.read_text())
+            assert config_data['system_message'] == 'Custom message'
+
+            # Test getting system message
+            result = runner.invoke(cli, ['config', 'get', 'system_message'])
+            assert result.exit_code == 0
+            assert 'Custom message' in result.output
 
 if __name__ == '__main__':
     pytest.main(['-v'])

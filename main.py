@@ -18,6 +18,12 @@ DEFAULT_MODEL = "gpt-4o"
 DEFAULT_TEMPERATURE = 0.0
 CONFIG_FILENAME = ".codify.config"
 DEFAULT_BASE_BRANCHES = ["main", "master"]
+DEFAULT_SYSTEM_MESSAGE = (
+    "You are an experienced code reviewer. Analyze the code changes and provide "
+    "constructive feedback following the given guidelines. Format your response "
+    "in markdown with clear sections for different types of findings. "
+    "Be concise but thorough, focusing on impactful changes and potential issues."
+)
 
 class ReviewMode(Enum):
     NORMAL = "normal"
@@ -30,13 +36,15 @@ class Config:
     temperature: float = DEFAULT_TEMPERATURE
     review_mode: ReviewMode = ReviewMode.NORMAL
     base_branch: str = "main"
+    system_message: str = DEFAULT_SYSTEM_MESSAGE
 
     def to_dict(self):
         return {
             "model": self.model,
             "temperature": self.temperature,
             "review_mode": self.review_mode.value,
-            "base_branch": self.base_branch
+            "base_branch": self.base_branch,
+            "system_message": self.system_message
         }
 
     @classmethod
@@ -45,7 +53,8 @@ class Config:
             model=data.get("model", DEFAULT_MODEL),
             temperature=data.get("temperature", DEFAULT_TEMPERATURE),
             review_mode=ReviewMode(data.get("review_mode", "normal")),
-            base_branch=data.get("base_branch", "main")
+            base_branch=data.get("base_branch", "main"),
+            system_message=data.get("system_message", DEFAULT_SYSTEM_MESSAGE)
         )
 
 class GitHandler:
@@ -240,9 +249,9 @@ class CodeReviewer:
             if self.debug:
                 self.console.print(f"[yellow]Warning: Error formatting content: {str(e)}[/]")
             return content
-        
+
     def review_branch(self, branch_name: str, base_branch: Optional[str] = None, 
-                     files: Optional[List[str]] = None, system_msg: Optional[str] = None) -> str:
+                        files: Optional[List[str]] = None, system_msg: Optional[str] = None) -> str:
         try:
             if not base_branch:
                 try:
@@ -267,39 +276,36 @@ class CodeReviewer:
 
 **Review Guidelines:**
 1. **Focus Areas:**
-   - Identify specific lines or sections that need attention
-   - Evaluate code quality and adherence to best practices
-   - Check for potential bugs and edge cases
-   - Assess performance implications
-   - Review security considerations
+  - Identify specific lines or sections that need attention
+  - Evaluate code quality and adherence to best practices
+  - Check for potential bugs and edge cases
+  - Assess performance implications
+  - Review security considerations
 
 2. **Review Approach:**
-   - Prioritize critical issues over minor style concerns
-   - Highlight well-written code and effective solutions
-   - Suggest improvements only when they add significant value
-   - Be specific in your feedback and recommendations
+  - Prioritize critical issues over minor style concerns
+  - Highlight well-written code and effective solutions
+  - Suggest improvements only when they add significant value
+  - Be specific in your feedback and recommendations
 
 Please review the following changes:
 
 {diff}"""
             
-            default_system_msg = (
-                "You are an experienced code reviewer. Analyze the code changes and provide "
-                "constructive feedback following the given guidelines. Format your response "
-                "in markdown with clear sections for different types of findings. "
-                "Be concise but thorough, focusing on impactful changes and potential issues."
-            )
+            # Use system message in this priority:
+            # 1. Explicitly provided via --system-msg
+            # 2. Configured in .codify.config
+            # 3. Default system message
+            effective_system_msg = system_msg or self.config.system_message
 
-            system_msg = system_msg or default_system_msg
-
-            self._debug_print("System Message", system_msg)
+            self._debug_print("System Message", effective_system_msg)
             self._debug_print("User Message", user_msg)
 
             response = completion(
                 model=self.config.model,
                 temperature=self.config.temperature,
                 messages=[
-                    {"role": "system", "content": system_msg},
+                    {"role": "system", "content": effective_system_msg},
                     {"role": "user", "content": user_msg},
                 ],
             )
@@ -314,7 +320,6 @@ Please review the following changes:
             formatted_content = formatted_content.strip()
             
             return formatted_content
-
         except click.ClickException as e:
             raise e
         except Exception as e:
