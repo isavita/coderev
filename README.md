@@ -20,6 +20,9 @@ codify review
 # Review specific branch or files
 codify review feature-branch
 codify review -f file1.py file2.py
+
+# Custom review instructions
+codify review --system-msg "Focus on security aspects"
 ```
 
 ## Supported Models
@@ -55,17 +58,35 @@ Manage settings in `.codify.config`:
 # View settings
 codify config list
 
-# Change model
+# Model settings
 codify config set model gpt-4o
-
-# Change temperature
 codify config set temperature 0.2
+
+# Review customization
+codify config set system_message "Your custom review instructions"
 ```
 
 Default configuration:
 - Model: `gpt-4o`
 - Temperature: 0.0
 - Review Mode: normal
+- System Message: General code review instructions focusing on quality and best practices
+
+### Review Instructions
+
+You can customize review instructions in three ways (in order of priority):
+1. Command-line argument: `--system-msg "Custom instructions"`
+2. Configuration file: `codify config set system_message "Default instructions"`
+3. Built-in default focusing on code quality and best practices
+
+Example customizations:
+```bash
+# Focus on security
+codify review --system-msg "Focus on security vulnerabilities and best practices"
+
+# Performance review
+codify config set system_message "Analyze performance implications and optimization opportunities"
+```
 
 ## Environment Variables
 
