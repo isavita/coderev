@@ -12,34 +12,57 @@ codify review feature-branch
 
 ## Options and Configuration
 
-All options can be set via CLI arguments or configured in `.codify.config`:
+All options can be set via CLI arguments and persisted in `.codify.config`:
+
+### CLI Options
 
 ```bash
-# Via CLI:
-codify review feature-branch [options]
-  --model "gpt-4o"                  # LLM model to use
-  --temperature 0.2                 # Model temperature (0-1)
-  --system-msg "..."               # Override system message
-  --instructions "..."             # Override review guidelines
-  --base main                      # Base branch for comparison
-  -f, --files file1.py file2.py   # Review specific files
-  --debug                         # Enable debug output
+codify review [branch_name] [options]
 
-# Via config:
+Branch Selection:
+  branch_name                      # Branch to review (optional, uses current if not specified)
+  --base-branch BRANCH            # Base branch for comparison (default: main/master)
+
+Review Scope:
+  -f, --review-files FILE         # Review specific files (can be used multiple times)
+  
+LLM Configuration:
+  --model MODEL                   # LLM model to use (default: gpt-4o)
+  --temperature FLOAT            # Model temperature 0-1 (default: 0.0)
+
+Review Customization:
+  --system-message TEXT          # Override system message/persona
+  --review-instructions TEXT     # Override review guidelines and focus
+
+Debug:
+  --debug                        # Enable debug output
+```
+
+### Configuration File
+
+Configure default values in `.codify.config`:
+
+```bash
+# View current configuration
+codify config list
+
+# Set configuration values
 codify config set <key> <value>
-  model            # Default: gpt-4o
-  temperature      # Default: 0.0
-  base_branch      # Default: main
-  system_message   # LLM system message
-  review_instructions  # Review guidelines
+
+Available Keys:
+  model                 # LLM model (default: gpt-4o)
+  temperature          # Model temperature (default: 0.0)
+  base_branch          # Default base branch (default: main)
+  system_message       # Default system message/persona
+  review_instructions  # Default review guidelines
 ```
 
 ### Supported Models (via litellm)
 
 ```bash
 # OpenAI (OPENAI_API_KEY)
---model gpt-4o
---model o1-mini
+--model gpt-4o              # Recommended for complex reviews
+--model o1-mini            # Faster, for simpler reviews
 
 # Anthropic (ANTHROPIC_API_KEY)
 --model claude-3-sonnet-20240320
@@ -51,7 +74,7 @@ codify config set <key> <value>
 --model gemini/gemini-1.5-pro-latest
 
 # Local via Ollama
---model ollama/qwen2.5-coder
+--model ollama/qwen2.5-coder  # No API key needed
 ```
 
 For more models, see [litellm's documentation](https://docs.litellm.ai/docs/).
@@ -59,19 +82,25 @@ For more models, see [litellm's documentation](https://docs.litellm.ai/docs/).
 ### Example Uses
 
 ```bash
-# Review current branch
-codify review
+# Basic Usage
+codify review                     # Review current branch
+codify review feature/xyz         # Review specific branch
+codify review -f src/main.py      # Review specific file
+codify review --base-branch dev   # Compare against different base
 
-# Review specific files
-codify review -f src/main.py tests/test_main.py
+# Customizing Review Focus
+codify review --review-instructions "Focus on:
+- Test coverage and quality
+- Error handling
+- Performance implications"
 
-# Custom review focus
-codify review --instructions "Focus on testing coverage"
-codify review --system-msg "Security-focused code reviewer"
+# Customizing Reviewer Persona
+codify review --system-message "You are a security-focused code reviewer..."
 
-# Persistent configuration
+# Setting Persistent Defaults
 codify config set model gpt-4o
-codify config set review_instructions "Check error handling"
+codify config set review_instructions "Focus on code quality and testing"
+codify config set base_branch develop
 ```
 
 ## Environment Variables
@@ -80,12 +109,15 @@ codify config set review_instructions "Check error handling"
 - `ANTHROPIC_API_KEY`: For Anthropic models
 - `MISTRAL_API_KEY`: For Mistral models
 - `GEMINI_API_KEY`: For Gemini models
-- `CODIFY_DEBUG_ENABLED`: Enable debug mode
+- `CODIFY_DEBUG_ENABLED`: Enable debug mode (set to "true")
 
 ## Development
 
 ```bash
+# Install development dependencies
 pip install -e ".[dev]"
+
+# Run tests
 pytest
 ```
 

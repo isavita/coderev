@@ -156,23 +156,34 @@ def test_cli_init_command(tmp_path):
 def test_cli_review_command(reviewer, mock_repo):
     """Test the review command"""
     runner = CliRunner()
-    
+
     # Prepare the git mock for review
     mock_repo.git.diff.return_value = "mock diff content"
     reviewer.git.get_changed_files = Mock(return_value=["file1.py"])
-    
+
     with patch('main.CodeReviewer') as mock_reviewer_class, \
          patch('main.completion') as mock_completion:
-        
+
         mock_reviewer_class.return_value = reviewer
         mock_completion.return_value = Mock(
             choices=[Mock(message=Mock(content="Mock review content"))]
         )
-        
+
+        # Test basic review command
         result = runner.invoke(cli, ['review', 'feature-branch'])
         assert result.exit_code == 0
-        if result.exit_code != 0:
-            print(f"Error output: {result.output}")  # Debug output
+        assert "Mock review content" in result.output
+
+        # Test with all options
+        result = runner.invoke(cli, [
+            'review',
+            'feature-branch',
+            '--base-branch', 'main',
+            '--review-files', 'test.py',
+            '--system-message', 'Custom system message',
+            '--review-instructions', 'Custom review instructions'
+        ])
+        assert result.exit_code == 0
         assert "Mock review content" in result.output
 
 def test_cli_list_branches(reviewer, mock_repo):
@@ -405,6 +416,41 @@ def test_git_handler_both_base_branches_missing(git_handler):
 
     assert "No default base branch found" in str(exc_info.value)
 
+def test_system_message_cli_command(tmp_path, git_handler):
+    """Test system message via CLI command"""
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        # Setup mock repo and config
+        mock_repo = Mock(spec=git.Repo)
+        type(mock_repo).working_dir = PropertyMock(return_value=str(tmp_path))
+
+        with patch('git.Repo') as mock_git_repo, \
+             patch('main.completion') as mock_completion:
+
+            mock_git_repo.return_value = mock_repo
+            mock_completion.return_value = Mock(
+                choices=[Mock(message=Mock(content="Mock review content"))]
+            )
+
+            # Initialize config
+            result = runner.invoke(cli, ['init'])
+            assert result.exit_code == 0
+
+            # Test setting system message via config
+            result = runner.invoke(cli, ['config', 'set', 'system_message', 'Custom message'])
+            assert result.exit_code == 0
+
+            # Verify system message was saved
+            config_path = tmp_path / ".codify.config"
+            config_data = json.loads(config_path.read_text())
+            assert config_data['system_message'] == 'Custom message'
+
+            # Test getting system message
+            result = runner.invoke(cli, ['config', 'get', 'system_message'])
+            assert result.exit_code == 0
+            assert 'Custom message' in result.output
+
 def test_system_message_configuration(tmp_path, git_handler):
     """Test system message configuration and priority"""
     # Setup
@@ -441,7 +487,10 @@ def test_system_message_configuration(tmp_path, git_handler):
     
         # Test 2: Override with explicit system message
         explicit_msg = "Explicit system message"
-        result = reviewer.review_branch("feature-branch", system_msg=explicit_msg)
+        result = reviewer.review_branch(
+            "feature-branch",
+            system_message=explicit_msg
+        )
         args = mock_completion.call_args[1]
         assert args['messages'][0]['content'] == explicit_msg
 
@@ -454,41 +503,6 @@ def test_system_message_configuration(tmp_path, git_handler):
         result = reviewer.review_branch("feature-branch")
         args = mock_completion.call_args[1]
         assert args['messages'][0]['content'] == DEFAULT_SYSTEM_MESSAGE
-
-def test_system_message_cli_command(tmp_path, git_handler):
-    """Test system message via CLI command"""
-    runner = CliRunner()
-
-    with runner.isolated_filesystem():
-        # Setup mock repo and config
-        mock_repo = Mock(spec=git.Repo)
-        type(mock_repo).working_dir = PropertyMock(return_value=str(tmp_path))
-
-        with patch('git.Repo') as mock_git_repo, \
-             patch('main.completion') as mock_completion:
-
-            mock_git_repo.return_value = mock_repo
-            mock_completion.return_value = Mock(
-                choices=[Mock(message=Mock(content="Mock review content"))]
-            )
-
-            # Initialize config
-            result = runner.invoke(cli, ['init'])
-            assert result.exit_code == 0
-
-            # Test setting system message via config
-            result = runner.invoke(cli, ['config', 'set', 'system_message', 'Custom message'])
-            assert result.exit_code == 0
-
-            # Verify system message was saved
-            config_path = tmp_path / ".codify.config"
-            config_data = json.loads(config_path.read_text())
-            assert config_data['system_message'] == 'Custom message'
-
-            # Test getting system message
-            result = runner.invoke(cli, ['config', 'get', 'system_message'])
-            assert result.exit_code == 0
-            assert 'Custom message' in result.output
 
 def test_review_instructions_configuration(tmp_path, git_handler):
     """Test review instructions configuration and priority"""
@@ -527,7 +541,10 @@ def test_review_instructions_configuration(tmp_path, git_handler):
         
         # Test 2: Override with explicit instructions
         explicit_instructions = "Explicit review instructions"
-        result = reviewer.review_branch("feature-branch", instructions=explicit_instructions)
+        result = reviewer.review_branch(
+            "feature-branch",
+            review_instructions=explicit_instructions
+        )
         args = mock_completion.call_args[1]
         assert explicit_instructions in args['messages'][1]['content']
         
@@ -557,7 +574,11 @@ def test_cli_review_with_instructions(reviewer, mock_repo):
             choices=[Mock(message=Mock(content="Mock review content"))]
         )
 
-        result = runner.invoke(cli, ['review', 'feature-branch', '--instructions', custom_instructions])
+        result = runner.invoke(cli, [
+            'review',
+            'feature-branch',
+            '--review-instructions', custom_instructions
+        ])
         assert result.exit_code == 0
 
         # Verify instructions were passed to the review method

@@ -260,8 +260,8 @@ class CodeReviewer:
             return content
 
     def review_branch(self, branch_name: str, base_branch: Optional[str] = None, 
-                        files: Optional[List[str]] = None, system_msg: Optional[str] = None,
-                        instructions: Optional[str] = None) -> str:
+                        files: Optional[List[str]] = None, system_message: Optional[str] = None,
+                        review_instructions: Optional[str] = None) -> str:
         try:
             if not base_branch:
                 try:
@@ -282,25 +282,25 @@ class CodeReviewer:
             diff = self.git.get_branch_diff(branch_name, base_branch, files)
 
             # Use review instructions in the same priority as system message:
-            # 1. Explicitly provided via --instructions
+            # 1. Explicitly provided via --review-instructions
             # 2. Configured in .codify.config
             # 3. Default review instructions
-            effective_instructions = instructions or self.config.review_instructions
+            effective_instructions = review_instructions or self.config.review_instructions
             
             user_msg = f"""Reviewing changes in branch '{branch_name}' compared to '{base_branch}'.
-    {files_info}
+{files_info}
 
-    {effective_instructions}
+{effective_instructions}
 
-    Please review the following changes:
+Please review the following changes:
 
-    {diff}"""
+{diff}"""
             
             # Use system message in this priority:
-            # 1. Explicitly provided via --system-msg
+            # 1. Explicitly provided via --system-message
             # 2. Configured in .codify.config
             # 3. Default system message
-            effective_system_msg = system_msg or self.config.system_message
+            effective_system_msg = system_message or self.config.system_message
 
             self._debug_print("System Message", effective_system_msg)
             self._debug_print("User Message", user_msg)
@@ -359,20 +359,20 @@ def init():
 
 @cli.command()
 @click.argument('branch_name', required=False)
-@click.option('--base', help='Base branch to compare against (defaults to main/master)')
-@click.option('--files', '-f', multiple=True, help='Specific files to review')
-@click.option('--debug', is_flag=True, help='Enable debug mode')
-@click.option('--model', help='Specify LLM model')
-@click.option('--temperature', type=float, help='Set temperature for LLM')
-@click.option('--system-msg', help='Custom system message for the LLM')
-@click.option('--instructions', help='Custom review instructions in the prompt')
-def review(branch_name: Optional[str], base: Optional[str], files: Tuple[str, ...],
+@click.option('--base-branch', help='Base branch to compare against (defaults to main/master)')
+@click.option('--review-files', '-f', multiple=True, help='Specific files to review (defaults to all changed files)')
+@click.option('--debug', is_flag=True, help='Enable debug mode (defaults to false)')
+@click.option('--model', help='Specify LLM model (defaults to gpt-4o)')
+@click.option('--temperature', type=float, help='Set temperature for LLM (defaults to 0.0)')
+@click.option('--system-message', help='Custom system message for the LLM')
+@click.option('--review-instructions', help='Custom review guidelines')
+def review(branch_name: Optional[str], base_branch: Optional[str], review_files: Tuple[str, ...],
           debug: bool, model: Optional[str], temperature: Optional[float], 
-          system_msg: Optional[str], instructions: Optional[str]):
+          system_message: Optional[str], review_instructions: Optional[str]):
     """Review changes in a branch compared to base branch (default: main/master)"""
     try:
         reviewer = CodeReviewer(debug=debug)
-        
+
         if model:
             reviewer.config.model = model
         if temperature is not None:
@@ -383,14 +383,14 @@ def review(branch_name: Optional[str], base: Optional[str], files: Tuple[str, ..
             click.echo(f"No branch specified, reviewing current branch: {branch_name}")
 
         # Convert files tuple to list if provided
-        files_list = list(files) if files else None
-        
+        files_list = list(review_files) if review_files else None
+
         review_content = reviewer.review_branch(
             branch_name, 
-            base, 
+            base_branch=base_branch,
             files=files_list,
-            system_msg=system_msg,
-            instructions=instructions
+            system_message=system_message,
+            review_instructions=review_instructions
         )
         click.echo("\n" + review_content)
     except click.ClickException as e:
