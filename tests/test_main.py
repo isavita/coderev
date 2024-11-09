@@ -3,7 +3,6 @@ from unittest.mock import Mock, patch, PropertyMock, MagicMock
 import git
 import json
 import click
-from pathlib import Path
 from click.testing import CliRunner
 from codify.main import (
     GitHandler,

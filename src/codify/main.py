@@ -1,7 +1,6 @@
 import os
 import click
 import git
-from enum import Enum
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Tuple
 from litellm import completion
