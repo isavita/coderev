@@ -1,126 +1,186 @@
 # Codify
 
+[![PyPI version](https://badge.fury.io/py/coderev.svg)](https://badge.fury.io/py/coderev)
+[![Python versions](https://img.shields.io/pypi/pyversions/coderev.svg)](https://pypi.org/project/coderev/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 An AI-powered code review tool that uses LLMs to provide intelligent feedback on your pull requests.
+
+- Supports multiple LLM providers (OpenAI, Anthropic, Gemini, Mistral)
+- Seamless Git integration
+- Customizable review focus and guidelines
+- Command-line interface with persistent configuration
+
+## Installation
+
+```bash
+pip install coderev
+```
+
+## Requirements
+
+- Python ≥ 3.8
+- Git repository
+- One of the following:
+  - OpenAI API key for GPT-4 models
+  - Anthropic API key for Claude models
+  - Mistral API key for Mistral models
+  - Gemini API key for Google models
+  - Local Ollama installation
 
 ## Quick Start
 
+1. Initialize Codify in your git repository:
 ```bash
-pip install codify
-codify init
-codify review feature-branch
+coderev init
 ```
 
-## Options and Configuration
-
-All options can be set via CLI arguments and persisted in `.codify.config`:
-
-### CLI Options
-
+2. Set up your preferred LLM provider (e.g., OpenAI):
 ```bash
-codify review [branch_name] [options]
-
-Branch Selection:
-  branch_name                      # Branch to review (optional, uses current if not specified)
-  --base-branch BRANCH            # Base branch for comparison (default: main/master)
-
-Review Scope:
-  -f, --review-files FILE         # Review specific files (can be used multiple times)
-  
-LLM Configuration:
-  --model MODEL                   # LLM model to use (default: gpt-4o)
-  --temperature FLOAT            # Model temperature 0-1 (default: 0.0)
-
-Review Customization:
-  --system-message TEXT          # Override system message/persona
-  --review-instructions TEXT     # Override review guidelines and focus
-
-Debug:
-  --debug                        # Enable debug output
+export OPENAI_API_KEY='your-api-key'
 ```
 
-### Configuration File
-
-Configure default values in `.codify.config`:
-
+3. Review your changes:
 ```bash
-# View current configuration
-codify config list
-
-# Set configuration values
-codify config set <key> <value>
-
-Available Keys:
-  model                 # LLM model (default: gpt-4o)
-  temperature          # Model temperature (default: 0.0)
-  base_branch          # Default base branch (default: main)
-  system_message       # Default system message/persona
-  review_instructions  # Default review guidelines
+coderev review
 ```
 
-### Supported Models (via litellm)
+## Usage
+
+### Basic Commands
 
 ```bash
-# OpenAI (OPENAI_API_KEY)
---model gpt-4o              # Recommended for complex reviews
---model o1-mini            # Faster, for simpler reviews
+# Review current branch
+coderev review
 
-# Anthropic (ANTHROPIC_API_KEY)
---model claude-3-sonnet-20240320
+# Review specific branch
+coderev review feature/xyz
 
-# Mistral (MISTRAL_API_KEY)
---model mistral/mistral-large-latest
+# Review specific files
+coderev review -f src/main.py tests/test_main.py
 
-# Gemini (GEMINI_API_KEY)
---model gemini/gemini-1.5-pro-latest
-
-# Local via Ollama
---model ollama/qwen2.5-coder  # No API key needed
+# List available branches
+coderev list
 ```
 
-For more models, see [litellm's documentation](https://docs.litellm.ai/docs/).
-
-### Example Uses
+### Command Options
 
 ```bash
-# Basic Usage
-codify review                     # Review current branch
-codify review feature/xyz         # Review specific branch
-codify review -f src/main.py      # Review specific file
-codify review --base-branch dev   # Compare against different base
+coderev review [OPTIONS] [BRANCH_NAME]
 
-# Customizing Review Focus
-codify review --review-instructions "Focus on:
-- Test coverage and quality
-- Error handling
-- Performance implications"
-
-# Customizing Reviewer Persona
-codify review --system-message "You are a security-focused code reviewer..."
-
-# Setting Persistent Defaults
-codify config set model gpt-4o
-codify config set review_instructions "Focus on code quality and testing"
-codify config set base_branch develop
+Options:
+  --base-branch TEXT          Base branch for comparison (default: main/master)
+  -f, --review-files FILE     Review specific files
+  --model TEXT               LLM model to use (default: gpt-4o)
+  --temperature FLOAT        Model temperature 0-1 (default: 0.0)
+  --system-message TEXT      Custom system message/persona
+  --review-instructions TEXT Custom review guidelines
+  --debug                    Enable debug mode
+  --help                     Show this message and exit
 ```
 
-## Environment Variables
+### Configuration
 
-- `OPENAI_API_KEY`: For OpenAI models
-- `ANTHROPIC_API_KEY`: For Anthropic models
-- `MISTRAL_API_KEY`: For Mistral models
-- `GEMINI_API_KEY`: For Gemini models
-- `CODIFY_DEBUG_ENABLED`: Enable debug mode (set to "true")
+Configure defaults in `.coderev.config`:
+
+```bash
+# View configuration
+coderev config list
+
+# Set values
+coderev config set model gpt-4o
+coderev config set base_branch main
+coderev config set temperature 0.0
+coderev config set system_message "Custom reviewer persona"
+coderev config set review_instructions "Custom review focus"
+```
+
+### Supported Models
+
+Codify uses [litellm](https://docs.litellm.ai/docs/) for model integration and supports:
+
+- OpenAI models (requires `OPENAI_API_KEY`):
+  - `gpt-4o` (recommended)
+  - `o1-mini` (faster)
+
+- Anthropic models (requires `ANTHROPIC_API_KEY`):
+  - `claude-3-sonnet-20240320`
+
+- Mistral models (requires `MISTRAL_API_KEY`):
+  - `mistral/mistral-large-latest`
+
+- Gemini models (requires `GEMINI_API_KEY`):
+  - `gemini/gemini-1.5-pro-latest`
+
+- Local models (requires Ollama):
+  - `ollama/qwen2.5-coder`
+
+### Environment Variables
+
+| Variable | Description | Required For |
+|----------|-------------|-------------|
+| `OPENAI_API_KEY` | OpenAI API key | OpenAI models |
+| `ANTHROPIC_API_KEY` | Anthropic API key | Claude models |
+| `MISTRAL_API_KEY` | Mistral API key | Mistral models |
+| `GEMINI_API_KEY` | Google API key | Gemini models |
+| `CODIFY_DEBUG_ENABLED` | Enable debug mode | Debugging (optional) |
 
 ## Development
 
+### Setup Development Environment
+
 ```bash
+# Clone the repository
+git clone https://github.com/yourusername/coderev
+cd coderev
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+
 # Install development dependencies
 pip install -e ".[dev]"
-
-# Run tests
-pytest
 ```
+
+### Running Tests
+
+```bash
+# Run tests with coverage
+pytest
+
+# Run specific test
+pytest tests/test_main.py -k test_name
+
+# Run with debug output
+pytest -vv
+```
+
+### Project Structure
+
+```
+coderev/
+├── src/
+│   └── coderev/
+│       ├── __init__.py      # Package version and metadata
+│       └── main.py          # Core functionality
+├── tests/
+│   ├── __init__.py
+│   └── test_main.py        # Tests
+├── setup.cfg               # Package metadata and config
+├── pyproject.toml         # Build system requirements
+└── README.md             # This file
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-Apache License 2.0
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## Credits
+
+- [litellm](https://github.com/BerriAI/litellm) - LLM provider integration
+- [Click](https://click.palletsprojects.com/) - CLI framework
+- [Rich](https://rich.readthedocs.io/) - Terminal formatting
