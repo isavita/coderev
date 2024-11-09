@@ -5,7 +5,7 @@ import json
 import click
 from pathlib import Path
 from click.testing import CliRunner
-from main import (
+from codify.main import (
     GitHandler,
     CodeReviewer,
     Config,
@@ -161,8 +161,8 @@ def test_cli_review_command(reviewer, mock_repo):
     mock_repo.git.diff.return_value = "mock diff content"
     reviewer.git.get_changed_files = Mock(return_value=["file1.py"])
 
-    with patch('main.CodeReviewer') as mock_reviewer_class, \
-         patch('main.completion') as mock_completion:
+    with patch('codify.main.CodeReviewer') as mock_reviewer_class, \
+         patch('codify.main.completion') as mock_completion:
 
         mock_reviewer_class.return_value = reviewer
         mock_completion.return_value = Mock(
@@ -190,7 +190,7 @@ def test_cli_list_branches(reviewer, mock_repo):
     """Test the list branches command"""
     runner = CliRunner()
     
-    with patch('main.CodeReviewer') as mock_reviewer_class, \
+    with patch('codify.main.CodeReviewer') as mock_reviewer_class, \
          patch('rich.table.Table.add_row') as mock_add_row:
         
         mock_reviewer_class.return_value = reviewer
@@ -228,7 +228,7 @@ def test_review_branch_with_files(reviewer):
     reviewer.git.get_changed_files = Mock(return_value=["file1.py", "file2.py"])
     reviewer.git.get_branch_diff = Mock(return_value="mock diff content")
     
-    with patch('main.completion') as mock_completion:
+    with patch('codify.main.completion') as mock_completion:
         mock_completion.return_value = Mock(
             choices=[Mock(message=Mock(content="Mock review for specific files"))]
         )
@@ -280,7 +280,7 @@ def test_model_validation(reviewer):
         assert "The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable" in str(exc_info.value)
         
         # Test with valid OpenAI setup
-        with patch('main.completion') as mock_completion:
+        with patch('codify.main.completion') as mock_completion:
             mock_completion.return_value = mock_response
             os.environ['OPENAI_API_KEY'] = 'mock-key'
             
@@ -293,7 +293,7 @@ def test_model_validation(reviewer):
             assert "Mock review content" in result
         
         # Test with valid Anthropic setup
-        with patch('main.completion') as mock_completion:
+        with patch('codify.main.completion') as mock_completion:
             mock_completion.return_value = mock_response
             os.environ['ANTHROPIC_API_KEY'] = 'mock-key'
             
@@ -302,7 +302,7 @@ def test_model_validation(reviewer):
             assert "Mock review content" in result
         
         # Test with Ollama (no API key needed)
-        with patch('main.completion') as mock_completion:
+        with patch('codify.main.completion') as mock_completion:
             mock_completion.return_value = mock_response
             reviewer.config.model = "ollama/qwen2.5-coder"
             result = reviewer.review_branch("feature-branch")
@@ -359,7 +359,7 @@ def test_git_handler_base_branch_fallback(git_handler):
             raise git.GitCommandError(
                 'git',
                 128,
-                stderr="fatal: ambiguous argument 'main...feature-branch': unknown revision or path not in the working tree."
+                stderr="fatal: ambiguous argument 'codify.main...feature-branch': unknown revision or path not in the working tree."
             )
         elif "master..." in args[0]:
             return "file1.py\nfile2.py"
@@ -426,7 +426,7 @@ def test_system_message_cli_command(tmp_path, git_handler):
         type(mock_repo).working_dir = PropertyMock(return_value=str(tmp_path))
 
         with patch('git.Repo') as mock_git_repo, \
-             patch('main.completion') as mock_completion:
+             patch('codify.main.completion') as mock_completion:
 
             mock_git_repo.return_value = mock_repo
             mock_completion.return_value = Mock(
@@ -465,7 +465,7 @@ def test_system_message_configuration(tmp_path, git_handler):
 
     with patch('pathlib.Path.exists') as mock_exists, \
          patch('pathlib.Path.__truediv__') as mock_truediv, \
-         patch('main.completion') as mock_completion:
+         patch('codify.main.completion') as mock_completion:
 
         mock_exists.return_value = True
         mock_truediv.return_value = config_path
@@ -519,7 +519,7 @@ def test_review_instructions_configuration(tmp_path, git_handler):
 
     with patch('pathlib.Path.exists') as mock_exists, \
          patch('pathlib.Path.__truediv__') as mock_truediv, \
-         patch('main.completion') as mock_completion:
+         patch('codify.main.completion') as mock_completion:
         
         mock_exists.return_value = True
         mock_truediv.return_value = config_path
@@ -566,8 +566,8 @@ def test_cli_review_with_instructions(reviewer, mock_repo):
     mock_repo.git.diff.return_value = "mock diff content"
     reviewer.git.get_changed_files = Mock(return_value=["file1.py"])
 
-    with patch('main.CodeReviewer') as mock_reviewer_class, \
-         patch('main.completion') as mock_completion:
+    with patch('codify.main.CodeReviewer') as mock_reviewer_class, \
+         patch('codify.main.completion') as mock_completion:
         
         mock_reviewer_class.return_value = reviewer
         mock_completion.return_value = Mock(

@@ -1,0 +1,11 @@
+include LICENSE
+include README.md
+include pyproject.toml
+include setup.cfg
+include pytest.ini
+
+# Include all test files
+recursive-include tests *.py
+
+# Exclude development and temp files
+global-exclude *.py[cod] __pycache__ *.so .DS_Store
