@@ -1,4 +1,4 @@
-# Codify
+# Coderev
 
 [![PyPI version](https://badge.fury.io/py/coderev.svg)](https://badge.fury.io/py/coderev)
 [![Python versions](https://img.shields.io/pypi/pyversions/coderev.svg)](https://pypi.org/project/coderev/)
@@ -30,7 +30,7 @@ pip install coderev
 
 ## Quick Start
 
-1. Initialize Codify in your git repository:
+1. Initialize Coderev in your git repository:
 ```bash
 coderev init
 ```
@@ -97,7 +97,7 @@ coderev config set review_instructions "Custom review focus"
 
 ### Supported Models
 
-Codify uses [litellm](https://docs.litellm.ai/docs/) for model integration and supports:
+Coderev uses [litellm](https://docs.litellm.ai/docs/) for model integration and supports:
 
 - OpenAI models (requires `OPENAI_API_KEY`):
   - `gpt-4o` (recommended)
@@ -123,7 +123,7 @@ Codify uses [litellm](https://docs.litellm.ai/docs/) for model integration and s
 | `ANTHROPIC_API_KEY` | Anthropic API key | Claude models |
 | `MISTRAL_API_KEY` | Mistral API key | Mistral models |
 | `GEMINI_API_KEY` | Google API key | Gemini models |
-| `CODIFY_DEBUG_ENABLED` | Enable debug mode | Debugging (optional) |
+| `CODEREV_DEBUG_ENABLED` | Enable debug mode | Debugging (optional) |
 
 ## Development
 
@@ -131,7 +131,7 @@ Codify uses [litellm](https://docs.litellm.ai/docs/) for model integration and s
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/coderev
+git clone https://github.com/isavita/coderev
 cd coderev
 
 # Create and activate virtual environment

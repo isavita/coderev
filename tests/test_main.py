@@ -149,7 +149,7 @@ def test_cli_init_command(tmp_path):
             result = runner.invoke(cli, ['init'])
             
             assert result.exit_code == 0
-            assert "Codify initialized successfully!" in result.output
+            assert "Coderev initialized successfully!" in result.output
             assert (tmp_path / ".coderev.config").exists()
 
 def test_cli_review_command(reviewer, mock_repo):
@@ -591,7 +591,7 @@ def test_cli_command_structure():
     # Test main CLI help
     result = runner.invoke(cli, ['--help'])
     assert result.exit_code == 0
-    assert "Codify - AI-powered code review tool" in result.output
+    assert "Coderev - AI-powered code review tool" in result.output
     assert "Commands:" in result.output
     assert "init" in result.output
     assert "review" in result.output
@@ -601,7 +601,7 @@ def test_cli_command_structure():
     # Test config subcommand help
     result = runner.invoke(cli, ['config', '--help'])
     assert result.exit_code == 0
-    assert "Manage Codify configuration" in result.output
+    assert "Manage Coderev configuration" in result.output
     assert "Commands:" in result.output
     assert "set" in result.output
     assert "get" in result.output

@@ -192,7 +192,7 @@ class CodeReviewer:
     def __init__(self, repo_path: str = ".", debug: bool = False):
         self.git = GitHandler(repo_path)
         self.console = Console()
-        self.debug = debug or os.getenv("CODIFY_DEBUG_ENABLED", "false").lower() == "true"
+        self.debug = debug or os.getenv("CODEREV_DEBUG_ENABLED", "false").lower() == "true"
         self.config = self._load_config()
 
     def _load_config(self) -> Config:
@@ -343,16 +343,16 @@ Please review the following changes:
 
 @click.group()
 def cli():
-    """Codify - AI-powered code review tool"""
+    """Coderev - AI-powered code review tool"""
     pass
 
 @cli.command()
 def init():
-    """Initialize Codify in the current repository"""
+    """Initialize Coderev in the current repository"""
     try:
         reviewer = CodeReviewer()
         reviewer._save_config()
-        click.echo("✨ Codify initialized successfully!")
+        click.echo("✨ Coderev initialized successfully!")
     except click.ClickException as e:
         click.echo(f"Error: {str(e)}", err=True)
 
@@ -406,7 +406,7 @@ def list_branches():
 
 @cli.group()
 def config():
-    """Manage Codify configuration"""
+    """Manage Coderev configuration"""
     pass
 
 @config.command(name='set')
