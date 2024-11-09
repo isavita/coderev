@@ -585,5 +585,28 @@ def test_cli_review_with_instructions(reviewer, mock_repo):
         args = mock_completion.call_args[1]
         assert custom_instructions in args['messages'][1]['content']
 
+def test_cli_command_structure():
+    """Test CLI command hierarchy and help messages"""
+    runner = CliRunner()
+
+    # Test main CLI help
+    result = runner.invoke(cli, ['--help'])
+    assert result.exit_code == 0
+    assert "Codify - AI-powered code review tool" in result.output
+    assert "Commands:" in result.output
+    assert "init" in result.output
+    assert "review" in result.output
+    assert "list" in result.output
+    assert "config" in result.output
+
+    # Test config subcommand help
+    result = runner.invoke(cli, ['config', '--help'])
+    assert result.exit_code == 0
+    assert "Manage Codify configuration" in result.output
+    assert "Commands:" in result.output
+    assert "set" in result.output
+    assert "get" in result.output
+    assert "list" in result.output
+
 if __name__ == '__main__':
     pytest.main(['-v'])
