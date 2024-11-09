@@ -13,7 +13,8 @@ from main import (
     DEFAULT_MODEL,
     DEFAULT_BASE_BRANCH,
     DEFAULT_TEMPERATURE,
-    DEFAULT_SYSTEM_MESSAGE
+    DEFAULT_SYSTEM_MESSAGE,
+    DEFAULT_REVIEW_INSTRUCTIONS
 )
 
 @pytest.fixture
@@ -67,7 +68,9 @@ def mock_config():
     return {
         "model": DEFAULT_MODEL,
         "temperature": DEFAULT_TEMPERATURE,
-        "base_branch": DEFAULT_BASE_BRANCH
+        "base_branch": DEFAULT_BASE_BRANCH,
+        "system_message": DEFAULT_SYSTEM_MESSAGE,
+        "review_instructions": DEFAULT_REVIEW_INSTRUCTIONS
     }
 
 @pytest.fixture
@@ -108,24 +111,32 @@ def test_config_default_values():
     assert config.model == DEFAULT_MODEL
     assert config.temperature == DEFAULT_TEMPERATURE
     assert config.base_branch == DEFAULT_BASE_BRANCH
+    assert config.system_message == DEFAULT_SYSTEM_MESSAGE
+    assert config.review_instructions == DEFAULT_REVIEW_INSTRUCTIONS
 
 def test_config_serialization():
     """Test Config serialization and deserialization"""
     config = Config(
         model="custom-model",
         temperature=0.5,
-        base_branch="develop"
+        base_branch="develop",
+        system_message="Custom system message",
+        review_instructions="Custom review instructions"
     )
-    
+
     config_dict = config.to_dict()
     assert config_dict["model"] == "custom-model"
     assert config_dict["temperature"] == 0.5
     assert config_dict["base_branch"] == "develop"
+    assert config_dict["system_message"] == "Custom system message"
+    assert config_dict["review_instructions"] == "Custom review instructions"
     
     new_config = Config.from_dict(config_dict)
     assert new_config.model == config.model
     assert new_config.temperature == config.temperature
     assert new_config.base_branch == config.base_branch
+    assert new_config.system_message == config.system_message
+    assert new_config.review_instructions == config.review_instructions
 
 def test_cli_init_command(tmp_path):
     """Test the init command"""
@@ -409,20 +420,20 @@ def test_system_message_configuration(tmp_path, git_handler):
     with patch('pathlib.Path.exists') as mock_exists, \
          patch('pathlib.Path.__truediv__') as mock_truediv, \
          patch('main.completion') as mock_completion:
-        
+
         mock_exists.return_value = True
         mock_truediv.return_value = config_path
         mock_completion.return_value = Mock(
             choices=[Mock(message=Mock(content="Mock review content"))]
         )
-    
+
         reviewer = CodeReviewer(debug=True)
         reviewer.git = git_handler
-    
+
         # Mock git operations
         git_handler.get_changed_files = Mock(return_value=["file1.py"])
         git_handler.get_branch_diff = Mock(return_value="mock diff")
-    
+
         # Test 1: Using config file system message
         result = reviewer.review_branch("feature-branch")
         args = mock_completion.call_args[1]
@@ -433,13 +444,13 @@ def test_system_message_configuration(tmp_path, git_handler):
         result = reviewer.review_branch("feature-branch", system_msg=explicit_msg)
         args = mock_completion.call_args[1]
         assert args['messages'][0]['content'] == explicit_msg
-    
+
         # Test 3: Fallback to default when config doesn't have system_message
         del custom_config['system_message']
         config_path.write_text(json.dumps(custom_config))
         reviewer = CodeReviewer(debug=True)
         reviewer.git = git_handler
-    
+
         result = reviewer.review_branch("feature-branch")
         args = mock_completion.call_args[1]
         assert args['messages'][0]['content'] == DEFAULT_SYSTEM_MESSAGE
@@ -478,6 +489,80 @@ def test_system_message_cli_command(tmp_path, git_handler):
             result = runner.invoke(cli, ['config', 'get', 'system_message'])
             assert result.exit_code == 0
             assert 'Custom message' in result.output
+
+def test_review_instructions_configuration(tmp_path, git_handler):
+    """Test review instructions configuration and priority"""
+    # Setup
+    config_path = tmp_path / ".codify.config"
+    custom_config = {
+        "model": "gpt-4o",
+        "temperature": 0.0,
+        "base_branch": "main",
+        "system_message": DEFAULT_SYSTEM_MESSAGE,
+        "review_instructions": "Custom instructions from config"
+    }
+    config_path.write_text(json.dumps(custom_config))
+
+    with patch('pathlib.Path.exists') as mock_exists, \
+         patch('pathlib.Path.__truediv__') as mock_truediv, \
+         patch('main.completion') as mock_completion:
+        
+        mock_exists.return_value = True
+        mock_truediv.return_value = config_path
+        mock_completion.return_value = Mock(
+            choices=[Mock(message=Mock(content="Mock review content"))]
+        )
+        
+        reviewer = CodeReviewer(debug=True)
+        reviewer.git = git_handler
+        
+        # Mock git operations
+        git_handler.get_changed_files = Mock(return_value=["file1.py"])
+        git_handler.get_branch_diff = Mock(return_value="mock diff")
+        
+        # Test 1: Using config file instructions
+        result = reviewer.review_branch("feature-branch")
+        args = mock_completion.call_args[1]
+        assert "Custom instructions from config" in args['messages'][1]['content']
+        
+        # Test 2: Override with explicit instructions
+        explicit_instructions = "Explicit review instructions"
+        result = reviewer.review_branch("feature-branch", instructions=explicit_instructions)
+        args = mock_completion.call_args[1]
+        assert explicit_instructions in args['messages'][1]['content']
+        
+        # Test 3: Fallback to default when config doesn't have instructions
+        del custom_config['review_instructions']
+        config_path.write_text(json.dumps(custom_config))
+        reviewer = CodeReviewer(debug=True)
+        reviewer.git = git_handler
+        
+        result = reviewer.review_branch("feature-branch")
+        args = mock_completion.call_args[1]
+        assert DEFAULT_REVIEW_INSTRUCTIONS in args['messages'][1]['content']
+
+def test_cli_review_with_instructions(reviewer, mock_repo):
+    """Test review command with custom instructions"""
+    runner = CliRunner()
+    custom_instructions = "Focus on performance aspects"
+
+    mock_repo.git.diff.return_value = "mock diff content"
+    reviewer.git.get_changed_files = Mock(return_value=["file1.py"])
+
+    with patch('main.CodeReviewer') as mock_reviewer_class, \
+         patch('main.completion') as mock_completion:
+        
+        mock_reviewer_class.return_value = reviewer
+        mock_completion.return_value = Mock(
+            choices=[Mock(message=Mock(content="Mock review content"))]
+        )
+
+        result = runner.invoke(cli, ['review', 'feature-branch', '--instructions', custom_instructions])
+        assert result.exit_code == 0
+
+        # Verify instructions were passed to the review method
+        args = mock_completion.call_args[1]
+        assert custom_instructions in args['messages'][1]['content']
 
 if __name__ == '__main__':
     pytest.main(['-v'])

@@ -25,8 +25,19 @@ DEFAULT_SYSTEM_MESSAGE = (
     "in markdown with clear sections for different types of findings. "
     "Be concise but thorough, focusing on impactful changes and potential issues."
 )
+DEFAULT_REVIEW_INSTRUCTIONS = """**Review Guidelines:**
+1. **Focus Areas:**
+  - Identify specific lines or sections that need attention
+  - Evaluate code quality and adherence to best practices
+  - Check for potential bugs and edge cases
+  - Assess performance implications
+  - Review security considerations
 
-
+2. **Review Approach:**
+  - Prioritize critical issues over minor style concerns
+  - Highlight well-written code and effective solutions
+  - Suggest improvements only when they add significant value
+  - Be specific in your feedback and recommendations"""
 
 @dataclass
 class Config:
@@ -34,13 +45,15 @@ class Config:
     temperature: float = DEFAULT_TEMPERATURE
     base_branch: str = DEFAULT_BASE_BRANCH
     system_message: str = DEFAULT_SYSTEM_MESSAGE
+    review_instructions: str = DEFAULT_REVIEW_INSTRUCTIONS
 
     def to_dict(self):
         return {
             "model": self.model,
             "temperature": self.temperature,
             "base_branch": self.base_branch,
-            "system_message": self.system_message
+            "system_message": self.system_message,
+            "review_instructions": self.review_instructions
         }
 
     @classmethod
@@ -49,7 +62,8 @@ class Config:
             model=data.get("model", DEFAULT_MODEL),
             temperature=data.get("temperature", DEFAULT_TEMPERATURE),
             base_branch=data.get("base_branch", DEFAULT_BASE_BRANCH),
-            system_message=data.get("system_message", DEFAULT_SYSTEM_MESSAGE)
+            system_message=data.get("system_message", DEFAULT_SYSTEM_MESSAGE),
+            review_instructions=data.get("review_instructions", DEFAULT_REVIEW_INSTRUCTIONS)
         )
 
 class GitHandler:
@@ -246,7 +260,8 @@ class CodeReviewer:
             return content
 
     def review_branch(self, branch_name: str, base_branch: Optional[str] = None, 
-                        files: Optional[List[str]] = None, system_msg: Optional[str] = None) -> str:
+                        files: Optional[List[str]] = None, system_msg: Optional[str] = None,
+                        instructions: Optional[str] = None) -> str:
         try:
             if not base_branch:
                 try:
@@ -265,27 +280,21 @@ class CodeReviewer:
                 files_info = f"\nChanged files:\n" + "\n".join(f"- {f}" for f in changed_files)
 
             diff = self.git.get_branch_diff(branch_name, base_branch, files)
+
+            # Use review instructions in the same priority as system message:
+            # 1. Explicitly provided via --instructions
+            # 2. Configured in .codify.config
+            # 3. Default review instructions
+            effective_instructions = instructions or self.config.review_instructions
             
             user_msg = f"""Reviewing changes in branch '{branch_name}' compared to '{base_branch}'.
-{files_info}
+    {files_info}
 
-**Review Guidelines:**
-1. **Focus Areas:**
-  - Identify specific lines or sections that need attention
-  - Evaluate code quality and adherence to best practices
-  - Check for potential bugs and edge cases
-  - Assess performance implications
-  - Review security considerations
+    {effective_instructions}
 
-2. **Review Approach:**
-  - Prioritize critical issues over minor style concerns
-  - Highlight well-written code and effective solutions
-  - Suggest improvements only when they add significant value
-  - Be specific in your feedback and recommendations
+    Please review the following changes:
 
-Please review the following changes:
-
-{diff}"""
+    {diff}"""
             
             # Use system message in this priority:
             # 1. Explicitly provided via --system-msg
@@ -306,14 +315,14 @@ Please review the following changes:
             )
 
             review_content = response.choices[0].message.content
-            
+
             if self.debug:
                 self._debug_print("Raw LLM Response", review_content)
-            
+
             # Format the content for display
             formatted_content = self._format_review_content(review_content)
             formatted_content = formatted_content.strip()
-            
+
             return formatted_content
         except click.ClickException as e:
             raise e
@@ -356,9 +365,10 @@ def init():
 @click.option('--model', help='Specify LLM model')
 @click.option('--temperature', type=float, help='Set temperature for LLM')
 @click.option('--system-msg', help='Custom system message for the LLM')
+@click.option('--instructions', help='Custom review instructions in the prompt')
 def review(branch_name: Optional[str], base: Optional[str], files: Tuple[str, ...],
           debug: bool, model: Optional[str], temperature: Optional[float], 
-          system_msg: Optional[str]):
+          system_msg: Optional[str], instructions: Optional[str]):
     """Review changes in a branch compared to base branch (default: main/master)"""
     try:
         reviewer = CodeReviewer(debug=debug)
@@ -379,7 +389,8 @@ def review(branch_name: Optional[str], base: Optional[str], files: Tuple[str, ..
             branch_name, 
             base, 
             files=files_list,
-            system_msg=system_msg
+            system_msg=system_msg,
+            instructions=instructions
         )
         click.echo("\n" + review_content)
     except click.ClickException as e:

@@ -164,3 +164,4 @@ cython_debug/
 
 # Specific for the project
 .codify.config
+.python-version
