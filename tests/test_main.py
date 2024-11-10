@@ -143,11 +143,11 @@ def test_cli_init_command(tmp_path):
     with runner.isolated_filesystem():
         mock_repo = Mock(spec=git.Repo)
         type(mock_repo).working_dir = PropertyMock(return_value=str(tmp_path))
-        
+
         with patch('git.Repo') as mock_git_repo:
             mock_git_repo.return_value = mock_repo
             result = runner.invoke(cli, ['init'])
-            
+
             assert result.exit_code == 0
             assert "Coderev initialized successfully!" in result.output
             assert (tmp_path / ".coderev.config").exists()
@@ -606,6 +606,80 @@ def test_cli_command_structure():
     assert "set" in result.output
     assert "get" in result.output
     assert "list" in result.output
+
+def test_temperature_configuration(tmp_path):
+    """Test temperature configuration validation and type conversion"""
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        # Setup mock repo
+        mock_repo = Mock(spec=git.Repo)
+        type(mock_repo).working_dir = PropertyMock(return_value=str(tmp_path))
+        
+        with patch('git.Repo') as mock_git_repo:
+            mock_git_repo.return_value = mock_repo
+            
+            # Initialize config
+            result = runner.invoke(cli, ['init'])
+            assert result.exit_code == 0
+            
+            # Test valid temperatures
+            valid_temps = ['0.0', '0.8', '1.0', '1.5', '2.0']
+            for temp in valid_temps:
+                result = runner.invoke(cli, ['config', 'set', 'temperature', temp])
+                assert result.exit_code == 0
+                assert f"Set temperature={temp}" in result.output
+                
+                # Verify temperature is stored as float
+                config_path = tmp_path / ".coderev.config"
+                config_data = json.loads(config_path.read_text())
+                assert isinstance(config_data['temperature'], float)
+                assert config_data['temperature'] == float(temp)
+            
+            # Test invalid temperature values
+            invalid_cases = [
+                ('invalid', 'must be a valid number'),
+                ('2.1', 'must be between 0 and 2'),
+                # Use -- to prevent negative numbers being interpreted as options
+                ('--', '-0.1', 'must be between 0 and 2'),
+            ]
+            
+            for case in invalid_cases:
+                if len(case) == 3:
+                    separator, temp, error_msg = case
+                    args = ['config', 'set', 'temperature', separator, temp]
+                else:
+                    temp, error_msg = case
+                    args = ['config', 'set', 'temperature', temp]
+                    
+                result = runner.invoke(cli, args)
+                assert result.exit_code != 0
+                assert error_msg in result.output
+
+def test_review_with_temperature(reviewer, mock_repo):
+    """Test review command with different temperature settings"""
+    runner = CliRunner()
+
+    mock_repo.git.diff.return_value = "mock diff content"
+    reviewer.git.get_changed_files = Mock(return_value=["file1.py"])
+
+    with patch('coderev.main.CodeReviewer') as mock_reviewer_class, \
+         patch('coderev.main.completion') as mock_completion:
+
+        mock_reviewer_class.return_value = reviewer
+        mock_completion.return_value = Mock(
+            choices=[Mock(message=Mock(content="Mock review content"))]
+        )
+
+        # Test with temperature via command line
+        result = runner.invoke(cli, ['review', 'feature-branch', '--temperature', '1.5'])
+        assert result.exit_code == 0
+        assert mock_completion.call_args[1]['temperature'] == 1.5
+
+        # Test with temperature via config
+        reviewer.config.temperature = 0.8
+        result = runner.invoke(cli, ['review', 'feature-branch'])
+        assert result.exit_code == 0
+        assert mock_completion.call_args[1]['temperature'] == 0.8
 
 if __name__ == '__main__':
     pytest.main(['-v'])

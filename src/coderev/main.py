@@ -57,6 +57,13 @@ class Config:
 
     @classmethod
     def from_dict(cls, data: Dict):
+        # Handle type conversion for temperature
+        if 'temperature' in data:
+            try:
+                data['temperature'] = float(data['temperature'])
+            except (ValueError, TypeError):
+                data['temperature'] = DEFAULT_TEMPERATURE
+        
         return cls(
             model=data.get("model", DEFAULT_MODEL),
             temperature=data.get("temperature", DEFAULT_TEMPERATURE),
@@ -417,13 +424,27 @@ def config_set(key: str, value: str):
     try:
         reviewer = CodeReviewer()
         if hasattr(reviewer.config, key):
+            # Handle type conversion for known numeric fields
+            if key == "temperature":
+                try:
+                    value = float(value)
+                except ValueError:
+                    click.echo("Error: temperature must be a valid number", err=True)
+                    raise click.ClickException("Invalid temperature value")
+
+                if not (0 <= value <= 2):
+                    click.echo("Error: temperature must be between 0 and 2", err=True)
+                    raise click.ClickException("Temperature out of range")
+
             setattr(reviewer.config, key, value)
             reviewer._save_config()
             click.echo(f"✓ Set {key}={value}")
         else:
-            click.echo(f"Error: Unknown configuration key: {key}", err=True)
+            msg = f"Error: Unknown configuration key: {key}"
+            click.echo(msg, err=True)
+            raise click.ClickException(msg)
     except click.ClickException as e:
-        click.echo(f"Error: {str(e)}", err=True)
+        raise e
 
 @config.command(name='get')
 @click.argument('key')
