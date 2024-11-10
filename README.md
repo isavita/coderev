@@ -71,12 +71,12 @@ coderev review [OPTIONS] [BRANCH_NAME]
 Options:
   --base-branch TEXT          Base branch for comparison (default: main/master)
   -f, --review-files FILE     Review specific files
-  --model TEXT               LLM model to use (default: gpt-4o)
-  --temperature FLOAT        Model temperature 0-1 (default: 0.0)
-  --system-message TEXT      Custom system message/persona
-  --review-instructions TEXT Custom review guidelines
-  --debug                    Enable debug mode
-  --help                     Show this message and exit
+  --model TEXT                LLM model to use (default: gpt-4o)
+  --temperature FLOAT         Model temperature 0-1 (default: 0.0)
+  --system-message TEXT       Custom system message/persona
+  --review-instructions TEXT  Custom review guidelines
+  --debug                     Enable debug mode
+  --help                      Show this message and exit
 ```
 
 ### Configuration
@@ -161,14 +161,14 @@ pytest -vv
 coderev/
 ├── src/
 │   └── coderev/
-│       ├── __init__.py      # Package version and metadata
-│       └── main.py          # Core functionality
+│       ├── __init__.py     # Package version and metadata
+│       └── main.py         # Core functionality
 ├── tests/
 │   ├── __init__.py
 │   └── test_main.py        # Tests
 ├── setup.cfg               # Package metadata and config
-├── pyproject.toml         # Build system requirements
-└── README.md             # This file
+├── pyproject.toml          # Build system requirements
+└── README.md               # This file
 ```
 
 ## Contributing
