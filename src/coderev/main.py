@@ -331,6 +331,7 @@ Please review the following changes:
                     {"role": "system", "content": effective_system_msg},
                     {"role": "user", "content": user_msg},
                 ],
+                drop_params=True,
             )
 
             review_content = response.choices[0].message.content
